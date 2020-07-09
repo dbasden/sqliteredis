@@ -2,4 +2,12 @@
 
 set -e -o pipefail
 
-./sqlitedis 'SELECT 1;'
+./sqlitedis '
+select 1+2;
+'
+
+./sqlitedis '
+CREATE TABLE fish (a,b,c);
+INSERT INTO fish VALUES (1,2,3);
+SELECT * FROM fish;
+'
