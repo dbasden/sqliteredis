@@ -1,8 +1,12 @@
+/* A simple C++ wrapper for sqlite3 to allow for easy testing of extensions
+ *
+ * David Basden <davidb-sqlitedis@oztechninja.com>
+ */
+
 #include <iostream>
 #include <memory>
 
 #include <sqlite3.h>
-
 
 
 class SQLengine {
@@ -12,6 +16,7 @@ class SQLengine {
 		for (int i=0; i<ncols; ++i) {
 			std::cout << colnames[i] << "=" << cols[i] << "  ";
 		}
+		std::cout << std::endl;
 		return 0;
 	}
 
@@ -20,6 +25,7 @@ class SQLengine {
 	explicit SQLengine(const char *dbName = ":memory:",
 			int openFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI)
 	{
+
 		 if (sqlite3_open_v2(dbName, &db, openFlags, NULL)) {
 			auto err = std::string("sqlite3_open: ") + dbName +": "+ sqlite3_errmsg(db);
 			throw std::runtime_error(err);
@@ -40,19 +46,9 @@ class SQLengine {
 
 	}
 
-	void dumpvfslist() {
-	    for(sqlite3_vfs *pVfs=sqlite3_vfs_find(0); pVfs; pVfs=pVfs->pNext){
-		std::cout << "vfs zName      = " << pVfs->zName << std::endl
-			  << "    iVersion   = " << pVfs->iVersion << std::endl
-			  << "    szOsFile   = " << pVfs->szOsFile << std::endl
-			  << "    mxPathname = " << pVfs->mxPathname << std::endl
-			  << std::endl;
-	    }
-	}
-
-	void extensionLoad(const char *sharedLib) {
+	void loadExtension(const char *sharedLib) {
 		char *errmsg = NULL;
-		sqlite3_db_config(db,SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION,1,NULL);
+		sqlite3_db_config(db, SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION, 1, NULL);
 		if(sqlite3_load_extension(db, sharedLib, NULL, &errmsg)) {
 			auto err = std::string(errmsg);
 			sqlite3_free(errmsg);
@@ -60,24 +56,39 @@ class SQLengine {
 		};
 	}
 
+	static void loadPersistentExtension(const char *sharedLib) {
+		// If the know the extension is persistent, we just create a
+		// memory backed sqlite db load the extension into it, and then
+		// throw away the db
+		SQLengine tmpeng(":memory:");
+		tmpeng.loadExtension(sharedLib);
+	}
+
+	static void dumpvfslist() {
+	    std::cerr << "vfs available:";
+	    for(sqlite3_vfs *vfs=sqlite3_vfs_find(0); vfs; vfs=vfs->pNext){
+		std::cerr << " " << vfs->zName;
+	    }
+	    std::cerr << std::endl;
+	}
+
+
 };
 
 int main(int argc, const char **argv) {
+	const char* extname = getenv("SQLITE_LOADEXT");
+	if (extname != NULL) {
+		SQLengine::loadPersistentExtension(extname);
+	}
+
 	if (argc < 2) {
-		std::cerr << argv[0] << " < SQL statements>" << std::endl <<
+		std::cerr << argv[0] << " <SQL statements>" << std::endl <<
 			std::endl << "optional environment variables: SQLITE_DB SQLITE_LOADEXT" <<std::endl;
+		SQLengine::dumpvfslist();
 		return 1;
 	}
 
 	auto sql = std::make_shared<SQLengine>(getenv("SQLITE_DB"));
-
-	const char* extname = getenv("SQLITE_LOADEXT");
-	if (extname != NULL) {
-		sql->extensionLoad(extname);
-	}
-
-	sql->dumpvfslist();
-	
 	sql->exec(argv[1]);
 
 	return 0;

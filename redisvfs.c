@@ -28,8 +28,7 @@ sqlite3_vfs redis_vfs = {
 	redisvfs_delete,
 	redisvfs_access,
 	redisvfs_fullPathname,
-	// These should be zeroed by the ELF loader, but might as well be explicit
-	0, // redisvfs_dlOpen,
+	0, // redisvfs_dlOpen,  (These are all stubs. See sqlite3_redisvfs_init)
 	0, // redisvfs_dlError,
 	0, // redisvfs_dlSym,
 	0, // redisvfs_dlClose,
@@ -54,7 +53,6 @@ __declspec(dllexport)
 
 int sqlite3_redisvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi) {
 	int ret; 
-	printf("redisvfsinit\n");
 
 	SQLITE_EXTENSION_INIT2(pApi);
 	redis_vfs.pAppData = sqlite3_vfs_find(0);
@@ -76,11 +74,10 @@ int sqlite3_redisvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routin
 	redis_vfs.xCurrentTimeInt64 = defaultVFS->xCurrentTimeInt64;
 
 	// Register outselves as the new default
-	ret = sqlite3_vfs_register(&redis_vfs, 1); 
+	ret = sqlite3_vfs_register(&redis_vfs, 1);
 	if (ret != SQLITE_OK) {
-		printf("redisvfsinit bad\n");
+		fprintf(stderr, "redisvfsinit could not register itself\n");
 		return ret;
 	}
-	printf("redisvfsinit done\n");
 	return SQLITE_OK_LOAD_PERMANENTLY;
 }
