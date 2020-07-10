@@ -30,4 +30,9 @@ int redisvfs_getLastError(sqlite3_vfs*, int, char *);
 int redisvfs_currentTimeInt64(sqlite3_vfs*, sqlite3_int64*);
 #endif
 
+int redisvfs_register();
+#ifndef STATIC_REDISVFS
+int sqlite3_redisvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
+#endif
+
 #endif // __redisvfs_h

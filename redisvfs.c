@@ -1,9 +1,9 @@
-#ifdef STATIC_REDIS_VFS
-#include <sqlite3ext.h>
+#ifdef STATIC_REDISVFS
+#include "sqlite3.h"
 #else
 #include <sqlite3ext.h>
 SQLITE_EXTENSION_INIT1
-#endif // STATIC_REDIS_VFS
+#endif // STATIC_REDISVFS
 
 #include <stdio.h>
 #include <string.h>
@@ -96,7 +96,7 @@ int redisvfs_register() {
 }
 
 
-#ifndef STATIC_REDIS_VFS
+#ifndef STATIC_REDISVFS
 
 #ifdef _WIN32
 __declspec(dllexport)

@@ -6,7 +6,7 @@
 #include <iostream>
 #include <memory>
 
-#include <sqlite3.h>
+#include "sqlite3.h"
 
 #ifdef STATIC_REDISVFS
 #include "redisvfs.h"
@@ -93,9 +93,14 @@ class SQLengine {
 int main(int argc, const char **argv) {
 	const char* extname = getenv("SQLITE_LOADEXT");
 	if (extname != NULL) {
+		std::cerr << "Loading extension "<<extname <<std::endl;
 		SQLengine::loadPersistentExtension(extname);
 	}
+
 #ifdef STATIC_REDISVFS
+	if (redisvfs_register() != SQLITE_OK) {
+		return 1;
+	}
 #endif
 
 	if (argc < 2) {
