@@ -26,7 +26,7 @@ class SQLengine {
 
 	public:
 
-	explicit SQLengine(const char *dbName = ":memory:",
+	explicit SQLengine(const char *dbName = "database.sqlite",
 			int openFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI)
 	{
 
@@ -110,7 +110,17 @@ int main(int argc, const char **argv) {
 		return 1;
 	}
 
-	auto sql = std::make_shared<SQLengine>(getenv("SQLITE_DB"));
+	std::shared_ptr<SQLengine> sql;
+
+	char *envdbname = getenv("SQLITE_DB");
+	if (envdbname) {
+		std::cerr << "(using database '"<<envdbname<<"' from env SQLITE_DB) " << std::endl;
+		sql = std::make_shared<SQLengine>(envdbname);
+	}
+	else {
+		sql = std::make_shared<SQLengine>();
+	}
+
 	std::cerr << "(using vfs " << sql->currentVFSname() << ")" << std::endl;
 	sql->exec(argv[1]);
 

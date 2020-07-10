@@ -9,6 +9,7 @@ echo --- no sqliteredis
 
 (./sqlitedis 2>&1 || true )| fgrep vfs # Dump list of VFSs
 
+export SQLITE_DB=":memory:"
 ./sqlitedis '
 select 1+2;
 '
@@ -21,6 +22,7 @@ SELECT * FROM fish;
 
 echo
 echo --- static sqliteredis
+export SQLITE_DB='file?vfs=redisvfs'
 (./static-sqlitedis 2>&1 || true )| fgrep vfs # Dump list of VFSs
 
 ./static-sqlitedis '
@@ -35,7 +37,7 @@ SELECT * FROM fish;
 
 echo
 echo --- dynload sqliteredis
-export SQLITE_DB='file:?vfs=redisvfs'
+export SQLITE_DB='file?vfs=redisvfs'
 export SQLITE_LOADEXT=./redisvfs
 
 (./sqlitedis 2>&1 || true )| fgrep vfs # Dump list of VFSs
