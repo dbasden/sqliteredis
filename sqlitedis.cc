@@ -56,6 +56,12 @@ class SQLengine {
 		};
 	}
 
+	std::string currentVFSname() {
+		sqlite3_vfs *vfs;
+		sqlite3_file_control(db, "main", SQLITE_FCNTL_VFS_POINTER, &vfs);
+		return std::string(vfs->zName);
+	}
+
 	static void loadPersistentExtension(const char *sharedLib) {
 		// If the know the extension is persistent, we just create a
 		// memory backed sqlite db load the extension into it, and then
@@ -70,6 +76,11 @@ class SQLengine {
 		std::cerr << " " << vfs->zName;
 	    }
 	    std::cerr << std::endl;
+	    std::cerr << "default vfs is " << SQLengine::defaultVFS() << std::endl;
+	}
+	static std::string defaultVFS() {
+	    sqlite3_vfs *vfs = sqlite3_vfs_find(0);
+	    return std::string(vfs->zName);
 	}
 
 
@@ -89,6 +100,7 @@ int main(int argc, const char **argv) {
 	}
 
 	auto sql = std::make_shared<SQLengine>(getenv("SQLITE_DB"));
+	std::cerr << "(using vfs " << sql->currentVFSname() << ")" << std::endl;
 	sql->exec(argv[1]);
 
 	return 0;

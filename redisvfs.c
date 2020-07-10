@@ -1,21 +1,37 @@
 #include <sqlite3ext.h>
 SQLITE_EXTENSION_INIT1
+#include <stdio.h>
+#include <string.h>
 
 #include "redisvfs.h"
 
+#define DLOG(fmt,...) fprintf (stderr, "%s@%s[%d]: " fmt "\n", __func__, __FILE__, __LINE__, ##__VA_ARGS__)
+
 int redisvfs_open(sqlite3_vfs *vfs, const char *zName, sqlite3_file *f, int flags, int *pOutFlags) {
-	return SQLITE_CANTOPEN;
+DLOG("redisvfs_open zName='%s'",  zName);
+	RedisFile *rf = (RedisFile *)f;
+	memset(rf, 0, sizeof(RedisFile));
+
+	if (!(flags & SQLITE_OPEN_MAIN_DB)) {
+		return SQLITE_CANTOPEN;
+	}
+
+	return SQLITE_OK;
 }
 
 int redisvfs_delete(sqlite3_vfs *vfs, const char *zName, int syncDir) {
+DLOG("redisvfs_delete zName='%s'",  zName);
+	// FIXME: Can implement
 	return SQLITE_IOERR_DELETE;
 }
 int redisvfs_access(sqlite3_vfs *vfs, const char *zName, int flags, int *pResOut) {
+DLOG("redisvfs_access zName='%s'",  zName);
 	if (pResOut != 0)
 		*pResOut = 0;
 	return SQLITE_OK;
 }
 int redisvfs_fullPathname(sqlite3_vfs *vfs, const char *zName, int nOut, char *zOut) {
+DLOG("redisvfs_fullPathname zName='%s'",  zName);
 	sqlite3_snprintf(nOut, zOut, "%s", zName); // effectively strcpy with sqlite3 mm
 	return SQLITE_OK;
 }
@@ -49,8 +65,6 @@ sqlite3_vfs redis_vfs = {
 __declspec(dllexport)
 #endif
 
-#include <stdio.h>
-
 int sqlite3_redisvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi) {
 	int ret; 
 
@@ -79,5 +93,6 @@ int sqlite3_redisvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routin
 		fprintf(stderr, "redisvfsinit could not register itself\n");
 		return ret;
 	}
+
 	return SQLITE_OK_LOAD_PERMANENTLY;
 }
