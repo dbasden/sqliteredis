@@ -1,5 +1,6 @@
 CC=gcc
 CPP=g++
+SHELL=bash
 
 SQLITE_SRC=../sqlite
 SQLITE_BUILD=../sqlite/build
@@ -32,7 +33,10 @@ sqlitedis: sqlitedis.cc
 #redisvfs.o: redisvfs.c redisvfs.h
 
 static-sqlite3.o:
-	gcc $(CPPFLAGS) $(INCLUDES) -o static-sqlite3.o -c ${SQLITE_BUILD}/sqlite3.c
+	#gcc $(CPPFLAGS) $(INCLUDES) -o static-sqlite3.o -c ${SQLITE_BUILD}/sqlite3.c
+	cat ${SQLITE_BUILD}/sqlite3.c ${SQLITE_SRC}/ext/misc/vfslog.c > static-sqlite3.c
+	gcc -DSQLITE_EXTRA_INIT=sqlite3_register_vfslog -DSQLITE_USE_FCNTL_TRACE $(CPPFLAGS) $(INCLUDES) -o static-sqlite3.o -c static-sqlite3.c
+
 static-sqlitedis: CPPFLAGS=-Wall -ggdb -DSTATIC_REDISVFS
 static-sqlitedis: LDLIBS=-ldl -lpthread
 static-sqlitedis: sqlitedis.cc redisvfs.c redisvfs.h static-sqlite3.o
