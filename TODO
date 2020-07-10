@@ -1,0 +1,4 @@
+* Check the linker flags for redisvfs.so - It's showing as an ELF pie executable, not a ELF shared object.
+  (might just be `file` output.  It's not like there is a lot of difference between an executable and a shared object)
+* Pull redis hostname and port from database URI vars
+* Clean up makefile

@@ -4,7 +4,7 @@ SHELL=bash
 
 SQLITE_SRC=../sqlite
 SQLITE_BUILD=../sqlite/build
-INCLUDES=-I${SQLITE_BUILD}
+INCLUDES=-I${SQLITE_BUILD} -I/usr/include/hiredis
 LDFLAGS=-L${SQLITE_BUILD}/.libs
 LDLIBS=-l:libsqlite3.a -ldl -lpthread
 
@@ -22,7 +22,7 @@ memvfs.so:
 
 # sqlite extension module
 redisvfs.so: redisvfs.c redisvfs.h
-	gcc ${CPPFLAGS} ${INCLUDES} -fPIC -shared redisvfs.c -o redisvfs.so
+	gcc ${CPPFLAGS} ${INCLUDES} -fPIC -shared redisvfs.c -l hiredis -o redisvfs.so
 
 
 sqlitedis: sqlitedis.cc
@@ -38,6 +38,6 @@ static-sqlite3.o:
 	gcc -DSQLITE_EXTRA_INIT=sqlite3_register_vfslog -DSQLITE_USE_FCNTL_TRACE $(CPPFLAGS) $(INCLUDES) -o static-sqlite3.o -c static-sqlite3.c
 
 static-sqlitedis: CPPFLAGS=-Wall -ggdb -DSTATIC_REDISVFS
-static-sqlitedis: LDLIBS=-ldl -lpthread
+static-sqlitedis: LDLIBS=-ldl -lpthread -lhiredis
 static-sqlitedis: sqlitedis.cc redisvfs.c redisvfs.h static-sqlite3.o
 	g++ $(CPPFLAGS) $(INCLUDES) $(LDLIBS) -o static-sqlitedis redisvfs.c sqlitedis.cc static-sqlite3.o
