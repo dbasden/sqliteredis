@@ -8,6 +8,10 @@
 
 #include <sqlite3.h>
 
+#ifdef STATIC_REDISVFS
+#include "redisvfs.h"
+#endif
+
 
 class SQLengine {
 	sqlite3 *db;
@@ -91,6 +95,8 @@ int main(int argc, const char **argv) {
 	if (extname != NULL) {
 		SQLengine::loadPersistentExtension(extname);
 	}
+#ifdef STATIC_REDISVFS
+#endif
 
 	if (argc < 2) {
 		std::cerr << argv[0] << " <SQL statements>" << std::endl <<

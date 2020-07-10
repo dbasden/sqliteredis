@@ -1,5 +1,10 @@
+#ifdef STATIC_REDIS_VFS
+#include <sqlite3ext.h>
+#else
 #include <sqlite3ext.h>
 SQLITE_EXTENSION_INIT1
+#endif // STATIC_REDIS_VFS
+
 #include <stdio.h>
 #include <string.h>
 
@@ -58,17 +63,10 @@ sqlite3_vfs redis_vfs = {
 };
 
 
-/* We want to be able to compile as an sqlite3 extension so make a
- * module load entrypoint*/
 
-#ifdef _WIN32
-__declspec(dllexport)
-#endif
+int redisvfs_register() {
+	int ret;
 
-int sqlite3_redisvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi) {
-	int ret; 
-
-	SQLITE_EXTENSION_INIT2(pApi);
 	redis_vfs.pAppData = sqlite3_vfs_find(0);
 	redis_vfs.szOsFile = sizeof(RedisFile);
 
@@ -94,5 +92,26 @@ int sqlite3_redisvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routin
 		return ret;
 	}
 
-	return SQLITE_OK_LOAD_PERMANENTLY;
+	return SQLITE_OK;
 }
+
+
+#ifndef STATIC_REDIS_VFS
+
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+
+/* If we are compiling as an sqlite3 extension make a module load entrypoint
+ *
+ * sqlite3_SONAME_init is a well-known symbol
+ */
+int sqlite3_redisvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi) {
+	int ret;
+
+	SQLITE_EXTENSION_INIT2(pApi);
+	ret = redisvfs_register();
+	return (ret == SQLITE_OK) ? SQLITE_OK_LOAD_PERMANENTLY : ret;
+}
+
+#endif
