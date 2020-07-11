@@ -18,6 +18,16 @@ SQLITE_EXTENSION_INIT1
 
 /* keyspace helpers */
 
+static int get_blockkey(RedisFile *rf, sqlite3_int64 offset, char *outkeyname) {
+	// (REDISVFS_MAX_KEYLEN - REDISVFS_MAX_PREFIXLEN) = 32 characters 
+	// to encode the block number.  1 character for a delimiter, plus
+	// 14 bytes for hex encoding any block number for a 64 bit offset
+	// (given 1024 byte blocks) meeans we still have 17 bytes free
+	// if we need to encode something else in the keyname later on.
+	int blocknum = offset / REDISVFS_BLOCKSIZE;
+	return snprintf(outkeyname, REDISVFS_MAX_KEYLEN, "%s:%x", rf->keyprefix, blocknum);
+}
+
 /*
  * File API implementation
  *
@@ -39,6 +49,15 @@ int redisvfs_close(sqlite3_file *fp) {
 int redisvfs_read(sqlite3_file *fp, void *buf, int iAmt, sqlite3_int64 iOfst) {
 	RedisFile *rf = (RedisFile *)fp;
 	DLOG("(fp=%p prefix='%s' offset=%lld len=%d)", rf, rf->keyprefix, iOfst, iAmt);
+
+	sqlite3_int64 endi = iAmt+iOfst;
+
+	if ((iOfst/REDISVFS_BLOCKSIZE) != (endi/REDISVFS_BLOCKSIZE)) {
+		DLOG("Haven't implemented multiblock reads yet");
+		return !SQLITE_OK; // FIXME: Implement
+	}
+
+	//redis_block_read(rf, buf, 
 	return !SQLITE_OK; // FIXME: Implement
 }
 int redisvfs_write(sqlite3_file *fp, const void *buf, int iAmt, sqlite3_int64 iOfst) {
