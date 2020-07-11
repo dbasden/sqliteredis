@@ -3,7 +3,9 @@ SQLite extension to use redis as storage via an emulated VFS
 
 Not yet functionally complete!
 
-(This isn't something you should use without realising the horrible, horrible implications)
+This isn't something you should use without realising the horrible, horrible implications of meshing these things together.  The sqlite3 docs go into some detail about why it's a bad idea to back the VFS layer onto a network filesystem, and this has even more edge cases to take into account.
+
+I've only written this as a quick proof of concept at the expense of code quality. It's not as something that should ever be put into production or with data you care about.
 
 ### Features / Warnings / Implementation
 
