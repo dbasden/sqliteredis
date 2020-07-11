@@ -11,6 +11,13 @@ typedef struct RedisFile RedisFile;
 
 #define REDISVFS_BLOCKSIZE 1024
 
+// These are mostly arbitrary, but both MAX_PREFIXLEN and MAX_KEYLEN
+// must be increased/decreased by the same amount.  Given every file
+// operation sends the key over the wire, there is an impact of a larger
+// key size
+#define REDISVFS_MAX_PREFIXLEN 96 
+#define REDISVFS_MAX_KEYLEN 128
+
 /* virtual file that we can use to keep per "file" state */
 struct RedisFile {
 	// mandatory base class
@@ -18,8 +25,9 @@ struct RedisFile {
 
 	// Just have a file be the same as a redis connection for now
 	redisContext *redisctx;
-
+	
 	const char *keyprefix;
+	size_t keyprefixlen;
 };
 
 /* Prototypes of all sqlite3 file op functions that can be implemented

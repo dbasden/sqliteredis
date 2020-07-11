@@ -11,11 +11,12 @@ SQLITE_EXTENSION_INIT1
 #include "redisvfs.h"
 
 // Debugging
-#define DLOG(fmt,...) fprintf(stderr, "%s@%s[%d]: " fmt "\n", __func__, __FILE__, __LINE__, ##__VA_ARGS__),fflush(stderr)
+#define DLOG(fmt,...) fprintf(stderr, "%s[%d]: %s: " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__),fflush(stderr)
 //
 // Reference the parent VFS that we reference in pAppData
 #define PARENT_VFS(vfs) ((sqlite3_vfs *)(vfs->pAppData))
 
+/* keyspace helpers */
 
 /*
  * File API implementation
@@ -26,6 +27,7 @@ SQLITE_EXTENSION_INIT1
  */
 
 int redisvfs_close(sqlite3_file *fp) {
+	DLOG("stub");
 	RedisFile *rf = (RedisFile *)fp;
 	if (rf->redisctx) {
 		redisFree(rf->redisctx);
@@ -35,38 +37,50 @@ int redisvfs_close(sqlite3_file *fp) {
 }
 
 int redisvfs_read(sqlite3_file *fp, void *buf, int iAmt, sqlite3_int64 iOfst) {
+	RedisFile *rf = (RedisFile *)fp;
+	DLOG("(fp=%p prefix='%s' offset=%lld len=%d)", rf, rf->keyprefix, iOfst, iAmt);
 	return !SQLITE_OK; // FIXME: Implement
 }
 int redisvfs_write(sqlite3_file *fp, const void *buf, int iAmt, sqlite3_int64 iOfst) {
+	DLOG("stub");
 	return !SQLITE_OK; // FIXME: Implement
 }
 int redisvfs_truncate(sqlite3_file *fp, sqlite3_int64 size) {
+	DLOG("stub");
 	return !SQLITE_OK; // FIXME: Implement
 }
 int redisvfs_sync(sqlite3_file *fp, int flags) {
+	DLOG("stub");
 	// Noop. All our writes are synchronous.
 	// TODO: We can put a hard barrier in here to redis and block if we really want
 	return SQLITE_OK;
 }
 int redisvfs_fileSize(sqlite3_file *fp, sqlite3_int64 *pSize) {
+	DLOG("stub");
 	return !SQLITE_OK; // FIXME: Implement
 }
 int redisvfs_lock(sqlite3_file *fp, int eLock) {
+	DLOG("stub");
 	return !SQLITE_OK; // FIXME: Implement
 }
 int redisvfs_unlock(sqlite3_file *fp, int eLock) {
+	DLOG("stub");
 	return !SQLITE_OK; // FIXME: Implement
 }
 int redisvfs_checkReservedLock(sqlite3_file *fp, int *pResOut) {
+	DLOG("stub");
 	return !SQLITE_OK; // FIXME: Implement
 }
 int redisvfs_fileControl(sqlite3_file *fp, int op, void *pArg) {
+	DLOG("stub");
 	return !SQLITE_OK; // FIXME: Implement
 }
 int redisvfs_sectorSize(sqlite3_file *fp) {
+	DLOG("stub");
 	return REDISVFS_BLOCKSIZE;
 }
 int redisvfs_deviceCharacteristics(sqlite3_file *fp) {
+	DLOG("entry");
 	// Describe ordering and consistency guarantees that we
 	// can provide.  See sqlite3.h
 	// TODO implement SQLITE_IOCAP_BATCH_ATOMIC
@@ -107,6 +121,7 @@ const sqlite3_io_methods redisvfs_io_methods = {
 	redisvfs_deviceCharacteristics,
 };
 
+
 /*
  * VFS API implementation
  *
@@ -115,7 +130,7 @@ const sqlite3_io_methods redisvfs_io_methods = {
  */
 
 int redisvfs_open(sqlite3_vfs *vfs, const char *zName, sqlite3_file *f, int flags, int *pOutFlags) {
-DLOG("redisvfs_open zName='%s'",  zName);
+DLOG("(zName='%s',flags=%d)", zName,flags);
 	if (!(flags & SQLITE_OPEN_MAIN_DB)) {
 		return SQLITE_CANTOPEN;
 	}
@@ -124,33 +139,43 @@ DLOG("redisvfs_open zName='%s'",  zName);
 	const char *hostname = REDISVFS_DEFAULT_HOST;
 	int port = REDISVFS_DEFAULT_PORT;
 
-	redisContext *redis = redisConnect(hostname,port);
-	if (!redis || redis->err) {
-		if (redis) fprintf(stderr, "%s: Error: %s\n", __func__, redis->errstr);
-		return SQLITE_CANTOPEN;
-	}
 
 	RedisFile *rf = (RedisFile *)f;
 	memset(rf, 0, sizeof(RedisFile));
 	rf->base.pMethods = &redisvfs_io_methods;
-	rf->redisctx = redis;
+
+	rf->keyprefixlen = strnlen(zName, REDISVFS_MAX_PREFIXLEN+1);
+	if (rf->keyprefixlen > REDISVFS_MAX_PREFIXLEN) {
+DLOG("key prefix ('filename') length too long");
+		return SQLITE_CANTOPEN;
+	}
+	rf->keyprefix = zName;  // Guaranteed to be unchanged until after xClose(*rf)
+DLOG("key prefix: '%s'", rf->keyprefix);
+
+	rf->redisctx = redisConnect(hostname,port);
+	if (!(rf->redisctx) || rf->redisctx->err) {
+		if (rf->redisctx)
+		 	fprintf(stderr, "%s: Error: %s\n", __func__, rf->redisctx->errstr);
+		return SQLITE_CANTOPEN;
+	}
+
 
 	return SQLITE_OK;
 }
 
 int redisvfs_delete(sqlite3_vfs *vfs, const char *zName, int syncDir) {
-DLOG("redisvfs_delete zName='%s'",  zName);
+DLOG("(zName='%s',syncDir=%d)",  zName, syncDir);
 	// FIXME: Can implement
 	return SQLITE_IOERR_DELETE;
 }
 int redisvfs_access(sqlite3_vfs *vfs, const char *zName, int flags, int *pResOut) {
-DLOG("redisvfs_access zName='%s'",  zName);
+DLOG("(zName='%s', flags=%d)", zName, flags);
 	if (pResOut != 0)
 		*pResOut = 0;
 	return SQLITE_OK;
 }
 int redisvfs_fullPathname(sqlite3_vfs *vfs, const char *zName, int nOut, char *zOut) {
-DLOG("redisvfs_fullPathname zName='%s'",  zName);
+DLOG("(zName='%s',nOut=%d)", zName,nOut);
 	sqlite3_snprintf(nOut, zOut, "%s", zName); // effectively strcpy with sqlite3 mm
 	return SQLITE_OK;
 }
