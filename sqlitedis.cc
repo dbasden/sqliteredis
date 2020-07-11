@@ -91,17 +91,18 @@ class SQLengine {
 };
 
 int main(int argc, const char **argv) {
+#ifdef STATIC_REDISVFS
+	if (redisvfs_register() != SQLITE_OK) {
+		return 1;
+	}
+#endif
+
 	const char* extname = getenv("SQLITE_LOADEXT");
 	if (extname != NULL) {
 		std::cerr << "Loading extension "<<extname <<std::endl;
 		SQLengine::loadPersistentExtension(extname);
 	}
 
-#ifdef STATIC_REDISVFS
-	if (redisvfs_register() != SQLITE_OK) {
-		return 1;
-	}
-#endif
 
 	if (argc < 2) {
 		std::cerr << argv[0] << " <SQL statements>" << std::endl <<

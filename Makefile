@@ -2,42 +2,32 @@ CC=gcc
 CPP=g++
 SHELL=bash
 
-SQLITE_SRC=../sqlite
 SQLITE_BUILD=../sqlite/build
 INCLUDES=-I${SQLITE_BUILD} -I/usr/include/hiredis
 LDFLAGS=-L${SQLITE_BUILD}/.libs
-LDLIBS=-l:libsqlite3.a -ldl -lpthread
+LDLIBS=-l:libsqlite3.a -ldl -lpthread -lhiredis
 
 #CPPFLAGS=-Wall -O2 -ggdb ${INCLUDES}
 CPPFLAGS=-Wall -ggdb ${INCLUDES}
 
-default: sqlitedis memvfs.so redisvfs.so static-sqlitedis
+default: sqlitedis redisvfs.so static-sqlitedis
 
 clean:
-	rm -f memvfs.so redisvfs.so redisvfs.o sqlitedis static-sqlitedis static-sqlite3.o
+	rm -f redisvfs.so sqlitedis static-sqlitedis static-sqlite3.o
 
-# Example to check linking
-memvfs.so:
-	gcc ${CPPFLAGS} ${INCLUDES} -fPIC -shared ${SQLITE_SRC}/ext/misc/memvfs.c -o memvfs.so
 
 # sqlite extension module
 redisvfs.so: redisvfs.c redisvfs.h
 	gcc ${CPPFLAGS} ${INCLUDES} -fPIC -shared redisvfs.c -l hiredis -o redisvfs.so
 
-
-sqlitedis: sqlitedis.cc
-
-
 # test tool with statically linked redisvfs
 
-#redisvfs.o: redisvfs.c redisvfs.h
-
-static-sqlite3.o:
-	#gcc $(CPPFLAGS) $(INCLUDES) -o static-sqlite3.o -c ${SQLITE_BUILD}/sqlite3.c
-	cat ${SQLITE_BUILD}/sqlite3.c ${SQLITE_SRC}/ext/misc/vfslog.c > static-sqlite3.c
-	gcc -DSQLITE_EXTRA_INIT=sqlite3_register_vfslog -DSQLITE_USE_FCNTL_TRACE $(CPPFLAGS) $(INCLUDES) -o static-sqlite3.o -c static-sqlite3.c
-
 static-sqlitedis: CPPFLAGS=-Wall -ggdb -DSTATIC_REDISVFS
-static-sqlitedis: LDLIBS=-ldl -lpthread -lhiredis
-static-sqlitedis: sqlitedis.cc redisvfs.c redisvfs.h static-sqlite3.o
-	g++ $(CPPFLAGS) $(INCLUDES) $(LDLIBS) -o static-sqlitedis redisvfs.c sqlitedis.cc static-sqlite3.o
+static-sqlitedis: sqlitedis.cc redisvfs.c redisvfs.h
+	g++ $(CPPFLAGS) $(INCLUDES) $(LDFLAGS) -o static-sqlitedis redisvfs.c sqlitedis.cc $(LDLIBS)
+
+# Link vfsstat module
+# (of limited use as it uses the VFS it's shadowing to write it's log)
+vfsstat.so: SQLITE_SRC=../sqlite
+vfsstat.so:
+	gcc ${CPPFLAGS} ${INCLUDES} -fPIC -shared ${SQLITE_SRC}/ext/misc/vfsstat.c -o vfsstat.so
