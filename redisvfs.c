@@ -11,7 +11,7 @@ SQLITE_EXTENSION_INIT1
 #include "redisvfs.h"
 
 // Debugging
-#define DLOG(fmt,...) printf("%s@%s[%d]: " fmt "\n", __func__, __FILE__, __LINE__, ##__VA_ARGS__)
+#define DLOG(fmt,...) fprintf(stderr, "%s@%s[%d]: " fmt "\n", __func__, __FILE__, __LINE__, ##__VA_ARGS__),fflush(stderr)
 //
 // Reference the parent VFS that we reference in pAppData
 #define PARENT_VFS(vfs) ((sqlite3_vfs *)(vfs->pAppData))
