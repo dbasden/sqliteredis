@@ -10,11 +10,10 @@ LDLIBS=-l:libsqlite3.a -ldl -lpthread -lhiredis
 #CPPFLAGS=-Wall -O2 -ggdb ${INCLUDES}
 CPPFLAGS=-Wall -ggdb ${INCLUDES}
 
-default: sqlitedis redisvfs.so static-sqlitedis
+default: sqlitedis redisvfs.so static-sqlitedis static-redisvfs.o
 
 clean:
-	rm -f redisvfs.so sqlitedis static-sqlitedis static-sqlite3.o
-
+	rm -f redisvfs.so sqlitedis static-sqlitedis static-sqldis.o
 
 # sqlite extension module
 redisvfs.so: redisvfs.c redisvfs.h
@@ -22,9 +21,11 @@ redisvfs.so: redisvfs.c redisvfs.h
 
 # test tool with statically linked redisvfs
 
-static-sqlitedis: CPPFLAGS=-Wall -ggdb -DSTATIC_REDISVFS
+static-sqlitedis: CFLAGS=-Wall -ggdb -DSTATIC_REDISVFS
+static-sqlitedis: CPPFLAGS=${CFLAGS}
 static-sqlitedis: sqlitedis.cc redisvfs.c redisvfs.h
-	g++ $(CPPFLAGS) $(INCLUDES) $(LDFLAGS) -o static-sqlitedis redisvfs.c sqlitedis.cc $(LDLIBS)
+	gcc ${CFLAGS} ${INCLUDES} -o static-redisvfs.o -c redisvfs.c
+	g++ $(CPPFLAGS) $(INCLUDES) $(LDFLAGS) -o static-sqlitedis static-redisvfs.o sqlitedis.cc $(LDLIBS)
 
 # Link vfsstat module
 # (of limited use as it uses the VFS it's shadowing to write it's log)

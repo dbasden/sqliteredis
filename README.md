@@ -24,7 +24,8 @@ I've only written this as a quick proof of concept at the expense of code qualit
 
 * hiredis (redis client library for C/C++) https://github.com/redis/hiredis
 * A recent sqlite3 (https://sqlite.org/)
-* C / C++ compiler & GNU make
+* C / C++ compiler
+* cmake + GNU Make
 
 ### Building the extension
 
@@ -33,8 +34,12 @@ I've only written this as a quick proof of concept at the expense of code qualit
 
 ### Building the cli test tool
 
-* Edit the Makefile to point to the output of an sqlite3 build   (FIXME: Make it easier to just use system libs if they are there) 
-* Run `make`
+```
+mkdir build
+cd build
+cmake ..
+make
+```
 
 See `./test.sh` for examples.  `sqlitedis` needs to be told to load the `redisvfs` extension to talk to redis.  `static-sqlitedis` has the redis VFS compiled in, and uses it by default.
 

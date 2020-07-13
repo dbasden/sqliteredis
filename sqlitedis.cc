@@ -9,7 +9,9 @@
 #include "sqlite3.h"
 
 #ifdef STATIC_REDISVFS
+extern "C" {
 #include "redisvfs.h"
+}
 #endif
 
 

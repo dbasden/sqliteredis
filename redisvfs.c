@@ -7,7 +7,8 @@ SQLITE_EXTENSION_INIT1
 
 #include <stdio.h>
 #include <string.h>
-#include <hiredis.h>
+#include <hiredis/hiredis.h>
+
 #include "redisvfs.h"
 
 // Debugging

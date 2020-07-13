@@ -1,7 +1,7 @@
 #ifndef __redisvfs_h
 #define __redisvfs_h
 
-#include <hiredis.h>
+#include <hiredis/hiredis.h>
 
 typedef struct sqlite3_vfs RedisVFS;
 typedef struct RedisFile RedisFile;
