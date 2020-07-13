@@ -18,6 +18,8 @@ typedef struct RedisFile RedisFile;
 #define REDISVFS_MAX_PREFIXLEN 96 
 #define REDISVFS_MAX_KEYLEN 128
 
+#define REDISVFS_KEYBUFLEN ( REDISVFS_MAX_KEYLEN + 1 )
+
 /* virtual file that we can use to keep per "file" state */
 struct RedisFile {
 	// mandatory base class

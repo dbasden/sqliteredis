@@ -36,6 +36,11 @@
 --   before write.
 --   One case where this might come up is sparse writes followed
 --   by a linear read of all blocks.
+--
+-- * Although there are partial block read/writes, there is no
+--   provision for a block < BLOCKLEN.  Anything using this to
+--   implement variable length files is going to need to maintain
+--   metadata for file length and do boundschecking independently
 
 -- setblock 1 KEYNAME start len data
 -- 
