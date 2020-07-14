@@ -77,4 +77,34 @@ int redisvfs_register();
 int sqlite3_redisvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
 #endif
 
+/* Really bad debugging macros that go on forever */
+#define DLOG(fmt,...) fprintf(stderr, "%s[%d]: %s: " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__),fflush(stderr)
+
+#define _redis_debugreply_val(reply) do {\
+    if (reply->type == REDIS_REPLY_INTEGER)  \
+        DLOG("Redis INT: %lld", reply->integer); \
+    else if (reply->type == REDIS_REPLY_STRING)  \
+        DLOG("Redis STRING: %lu bytes: %s", reply->len, reply->str); \
+    else if (reply->type == REDIS_REPLY_STATUS) \
+        DLOG("Redis STATUS: %s", reply->str); \
+    else if (reply->type == REDIS_REPLY_ERROR) \
+        DLOG("Redis ERROR: %s", reply->str); \
+    else if (reply->type == REDIS_REPLY_NIL) \
+        DLOG("Redis NIL"); \
+    else if (reply->type == REDIS_REPLY_ARRAY) { \
+            DLOG("REDIS ARRAY {"); \
+	          redis_debugreplyarray(reply); \
+            DLOG("} END REDIS ARRAY"); \
+    } \
+    else DLOG("Unknown redis reply type %d", reply->type);  \
+} while(0)
+
+#define redis_debugreply(reply) \
+	if (reply->type == REDIS_REPLY_ARRAY) { \
+        DLOG("REDIS ARRAY {"); \
+        for (int i=0; i<reply->elements; ++i)  _redis_debugreply_val(reply->element[i]); \
+        DLOG("} END REDIS ARRAY"); \
+    } else { \
+	    _redis_debugreply_val(reply); \
+    }
 #endif // __redisvfs_h

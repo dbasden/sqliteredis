@@ -1,4 +1,5 @@
 # sqliteredis
+
 SQLite extension to use redis as storage via an emulated VFS
 
 Not yet functionally complete!
@@ -42,6 +43,11 @@ make
 ```
 
 See `./test.sh` for examples.  `sqlitedis` needs to be told to load the `redisvfs` extension to talk to redis.  `static-sqlitedis` has the redis VFS compiled in, and uses it by default.
+
+### Alternate implementation options
+
+ * `SETRANGE` and `GETRANGE` are available in Redis >= 2.2 which do substring ops without the need for scripts.
+ * Redis strings are still limited to 512MB
 
 ### Author
 
