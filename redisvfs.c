@@ -305,7 +305,7 @@ int redisvfs_fileSize(sqlite3_file *fp, sqlite3_int64 *pSize) {
     return (*pSize >= 0) ? SQLITE_OK : SQLITE_ERROR;
 }
 int redisvfs_lock(sqlite3_file *fp, int eLock) {
-    DLOG("stubbed flock");
+    DLOG("stub flock(%s,%d)",((RedisFile *)fp)->keyprefix,eLock);
     return SQLITE_OK; // FIXME: Implement
 }
 int redisvfs_unlock(sqlite3_file *fp, int eLock) {
@@ -382,9 +382,11 @@ const sqlite3_io_methods redisvfs_io_methods = {
 
 int redisvfs_open(sqlite3_vfs *vfs, const char *zName, sqlite3_file *f, int flags, int *pOutFlags) {
 DLOG("(zName='%s',flags=%d)", zName,flags);
+#if 0
     if (!(flags & SQLITE_OPEN_MAIN_DB)) {
         return SQLITE_CANTOPEN;
     }
+#endif
 
     //hardcode hostname and port. for now. grab from database URI later
     const char *hostname = REDISVFS_DEFAULT_HOST;
@@ -410,10 +412,13 @@ DLOG("key prefix: '%s'", rf->keyprefix);
         return SQLITE_CANTOPEN;
     }
 
+    // FIXME: Check if OCREATE
+#if 0
     if (!redis_does_block_exist(rf, 0)) {
         DLOG("does not exists. Told.");
         return SQLITE_IOERR;
     }
+#endif
 
     return SQLITE_OK;
 }
