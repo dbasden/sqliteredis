@@ -24,7 +24,7 @@ SQLITE_EXTENSION_INIT1
 
 /* pre: outkeyname is exactly REDISVFS_MAX_KEYLEN+1 bytes */
 static int get_blockkey(RedisFile *rf, int64_t offset, char *outkeyname) {
-    // (REDISVFS_MAX_KEYLEN - REDISVFS_MAX_PREFIXLEN) = 32 characters 
+    // (REDISVFS_MAX_KEYLEN - REDISVFS_MAX_PREFIXLEN) = 32 characters
     // to encode the block number.  1 character for a delimiter, plus
     // 14 bytes for hex encoding any block number for a 64 bit offset
     // (given 1024 byte blocks) meeans we still have 17 bytes free
@@ -65,7 +65,7 @@ static int redis_discard_replies(RedisFile *rf, int ndiscards) {
 
 // Only used if we nest too much evil macro expansion of the debugreply macros
 static inline void redis_debugreplyarray (const redisReply *reply) {
-	for (int i=0; i<reply->elements; ++i) redis_debugreply(reply->element[i]);
+    for (int i=0; i<reply->elements; ++i) redis_debugreply(reply->element[i]);
 }
 
 /* redis blockio */
@@ -76,7 +76,7 @@ static int redis_queuecmd_whole_block_read(RedisFile *rf, const sqlite3_int64 of
     char key[REDISVFS_KEYBUFLEN];
     int keylen = get_blockkey(rf, offset, key);
 
-    return redisAppendCommandArgv(rf->redisctx, 2, 
+    return redisAppendCommandArgv(rf->redisctx, 2,
             (const char *[]){ "GET", key },
             (const size_t[]){ 3, keylen });
 }
@@ -101,7 +101,7 @@ static int redis_queue_increase_filesize_to(RedisFile *rf, int64_t minfilesize) 
         return ret;
 
     // Trim to only largest entry
-    return redisAppendCommand(rf->redisctx, "ZREVRANGE %s %d %d", key, 0, -2);
+    return redisAppendCommand(rf->redisctx, "ZREMRANGEBYRANK %s %d %d", key, 0, -2);
 
 }
 static int redis_consume_increase_filesize_to(RedisFile *rf) {
@@ -109,7 +109,7 @@ static int redis_consume_increase_filesize_to(RedisFile *rf) {
 }
 
 // WARNING: Don't use in pipeline
-// Returns 0 if the file doesnt exist 
+// Returns 0 if the file doesnt exist
 static int64_t redis_get_filesize(RedisFile *rf) {
     char key[REDISVFS_KEYBUFLEN];
     get_filesizekey(rf, key);
@@ -146,7 +146,7 @@ static bool redis_does_block_exist(RedisFile *rf, int64_t offset) {
     char key[REDISVFS_KEYBUFLEN];
     int keylen = get_blockkey(rf, offset, key);
 
-    if (redisAppendCommandArgv(rf->redisctx, 2, 
+    if (redisAppendCommandArgv(rf->redisctx, 2,
            (const char *[]){ "EXISTS", key },
            (const size_t[]){ 6, keylen }) != REDIS_OK) {
         return false;
@@ -163,13 +163,13 @@ static bool redis_does_block_exist(RedisFile *rf, int64_t offset) {
 }
 
 /* pre: buf is >= REDISVFS_BLOCKSIZE */
-static int redis_queuecmd_whole_block_write(RedisFile *rf, sqlite3_int64 offset, char *buf) {
+static int redis_queuecmd_whole_block_write(RedisFile *rf, int64_t offset, const char *buf) {
     assert((offset % REDISVFS_BLOCKSIZE) == 0);
 
     char key[REDISVFS_KEYBUFLEN];
     int keylen = get_blockkey(rf, offset, key);
 
-    return redisAppendCommandArgv(rf->redisctx, 3, 
+    return redisAppendCommandArgv(rf->redisctx, 3,
             (const char *[]){ "SET", key, buf },
             (const size_t[]){ 3, keylen, REDISVFS_BLOCKSIZE });
 }
@@ -189,9 +189,22 @@ static int redis_queuecmd_partial_block_read(RedisFile *rf, int64_t offset, int6
     return redisAppendCommand(rf->redisctx, "GETRANGE %s %d %d", key, block_first, block_last);
 }
 
-static int redis_queuecmd_partial_block_write() {
-    DLOG("unimplemented"); abort();
+static int redis_queuecmd_partial_block_write(RedisFile *rf, int64_t offset, const char *buf, int64_t len) {
+    assert(len > 0);
+    int64_t block_first = offset % REDISVFS_BLOCKSIZE;
+    assert((block_first + len) <= REDISVFS_BLOCKSIZE);
+
+    char key[REDISVFS_KEYBUFLEN];
+    int keylen = get_blockkey(rf, offset, key);
+    char block_offsetstr[32];
+    snprintf(block_offsetstr, 32, "%ld", block_first);
+
+    DLOG("SETRANGE %s %s ...(len %ld)",key, block_offsetstr, len);
+    return redisAppendCommandArgv(rf->redisctx, 4,
+            (const char *[]){ "SETRANGE", key, block_offsetstr, buf },
+            (const size_t[]){ 8, keylen, strlen(block_offsetstr), len });
 }
+
 
 static int redis_queuecmd_delete_block(RedisFile *rf, sqlite3_int64 offset) {
     assert((offset % REDISVFS_BLOCKSIZE) == 0);
@@ -200,8 +213,8 @@ static int redis_queuecmd_delete_block(RedisFile *rf, sqlite3_int64 offset) {
     int keylen = get_blockkey(rf, offset, key);
 
     return redisAppendCommandArgv(rf->redisctx, 2,
-            (const char *[]){ "DELETE", key },
-            (const size_t[]){ 6, keylen });
+            (const char *[]){ "DEL", key },
+            (const size_t[]){ 3, keylen });
 }
 
 /*
@@ -221,6 +234,77 @@ int redisvfs_close(sqlite3_file *fp) {
     }
     return SQLITE_OK;
 }
+int redisvfs_write(sqlite3_file *fp, const void *buf, int iAmt, sqlite3_int64 iOfst) {
+    RedisFile *rf = (RedisFile *)fp;
+    DLOG("(fp=%p prefix='%s' offset=%lld len=%d)", rf, rf->keyprefix, iOfst, iAmt);
+
+    int64_t write_startp = iOfst;
+    int64_t write_endp = iOfst+iAmt;
+
+    // Queue writes
+    for (int64_t leftp=write_startp; leftp<write_endp; leftp=_start_of_next_block(leftp)) {
+            int64_t blkstart = _start_of_block(leftp);
+            int64_t blknext = _start_of_next_block(leftp);
+            int64_t rightp = (write_endp > blknext) ? blknext : write_endp;
+
+            const char *bufleft = (const char *)buf + (leftp - write_startp);
+
+            if ((leftp == blkstart) && (rightp == blknext)) {
+                    assert((rightp-leftp) == REDISVFS_BLOCKSIZE);
+                    DLOG("%s full block write @ %ld", rf->keyprefix, leftp);
+                    if( redis_queuecmd_whole_block_write(rf, leftp, bufleft) == REDIS_ERR) {
+                            return SQLITE_IOERR;
+                            // TODO:  use redis check error and bubble up to sql last error
+                    }
+            } else {
+                    DLOG("%s Partial block write [%ld..%ld)", rf->keyprefix, leftp,rightp);
+                    if( redis_queuecmd_partial_block_write(rf, leftp, bufleft, rightp-leftp) == REDIS_ERR) {
+                         return SQLITE_IOERR;
+                    }
+            }
+    }
+
+    // Execute write and check responses
+    int64_t successfully_written = 0;
+    int return_status = SQLITE_OK;
+
+    for (int64_t leftp=write_startp; leftp<write_endp; leftp=_start_of_next_block(leftp)) {
+            int64_t blknext = _start_of_next_block(leftp);
+            int64_t rightp = (write_endp > blknext) ? blknext : write_endp;
+
+            redisReply *reply;
+
+            DLOG("checking reply for [%ld..%ld)", leftp,rightp);
+            if (redisGetReply(rf->redisctx, (void **)&reply) == REDIS_ERR) {
+                DLOG("ERROR: redisGetReply: %s", rf->redisctx->errstr);
+                return SQLITE_IOERR_WRITE;
+            }
+
+            redis_debugreply(reply);
+            // FIXME: check reply before incrementing written
+            if (return_status == SQLITE_OK) {
+                    successfully_written += rightp-leftp;
+            }
+            freeReplyObject(reply);
+    }
+
+    // write barrier (guaranteed for single server) then update filesize
+    // TODO: Make write barrier optional and remove SAFE_APPEND guarantee
+    // if we need  to increase write performance
+    // FIXME : Add write barrier cross-cluster
+    if (successfully_written > 0) {
+        int64_t minfilesize = iOfst + successfully_written;
+        // I think we could do this earlier on there without the extra RTT, but
+        // that assumes all the writes succeeded.
+        if (redis_queue_increase_filesize_to(rf, minfilesize) != REDIS_OK)
+            return_status = SQLITE_IOERR_WRITE;
+        if (redis_consume_increase_filesize_to(rf) != REDIS_OK)
+            return_status = SQLITE_IOERR_WRITE;
+    }
+    DLOG("written %ld/%d.  Returning %s\n", successfully_written, iAmt,
+            return_status == SQLITE_OK ? "SQLITE_OK" : "NOT OK");
+    return return_status;
+}
 
 int redisvfs_read(sqlite3_file *fp, void *buf, int iAmt, sqlite3_int64 iOfst) {
     RedisFile *rf = (RedisFile *)fp;
@@ -228,8 +312,6 @@ int redisvfs_read(sqlite3_file *fp, void *buf, int iAmt, sqlite3_int64 iOfst) {
 
     int64_t read_startp = iOfst;
     int64_t read_endp = iOfst+iAmt;
-
-    int returnStatus = SQLITE_OK;
 
     // Queue reads
     for (int64_t leftp=read_startp; leftp<read_endp; leftp=_start_of_next_block(leftp)) {
@@ -251,41 +333,68 @@ int redisvfs_read(sqlite3_file *fp, void *buf, int iAmt, sqlite3_int64 iOfst) {
             }
     }
 
+    // sqlite3 requires short reads be zero-filled for the rest of the buffer,
+    // and says database corruption will otherwise occur
+    memset(buf, 0, iAmt); /* This will cover the requirement but only required in the case of a short read */
+
+    int64_t successfully_read = 0;
+
+    // We track this becausei we need to continue draining the
+    // connection of command responses regardless of if the commands
+    // were successful.
+    int returnStatus = SQLITE_OK;
+
     // Execute and read responses
     for (int64_t leftp=read_startp; leftp<read_endp; leftp=_start_of_next_block(leftp)) {
             int64_t blknext = _start_of_next_block(leftp);
-            int64_t rightp = (read_endp > blknext) ? blknext : read_endp; 
+            int64_t rightp = (read_endp > blknext) ? blknext : read_endp;
 
             redisReply *reply;
 
             DLOG("fetching next (sub)block from redis stream");
             if (redisGetReply(rf->redisctx, (void **)&reply) == REDIS_ERR) {
                 DLOG("ERROR: redisGetReply: %s", rf->redisctx->errstr);
-                return SQLITE_IOERR;
+                return SQLITE_IOERR_READ;
             }
             if (reply->type == REDIS_REPLY_STRING) {
-                    DLOG("Redis STRING: %lu bytes", reply->len);
-                    if (reply->len < rightp-leftp) {
-                         DLOG("short read");
-                         returnStatus = SQLITE_IOERR_SHORT_READ;
+                DLOG("Redis STRING: %lu bytes", reply->len);
+                // The read counter can only increment if any previous
+                // reads were successful and not short
+                if (returnStatus == SQLITE_OK) {
+                    if (reply->len > rightp-leftp) {
+                        DLOG("read reply overflow");
+                        return SQLITE_IOERR_READ;
                     }
+                    if (reply->len < rightp-leftp) {
+                        DLOG("short read");
+                        returnStatus = SQLITE_IOERR_SHORT_READ;
+                    }
+                    if (reply->len > 0) {
+                        memcpy(buf+(leftp-read_startp), reply->str, reply->len);
+                    }
+                    successfully_read += rightp-leftp;
+                }
+                else {
+                    DLOG("Dropping because lack of continuity");
+                }
             }
             else if (reply->type == REDIS_REPLY_NIL) {
                 DLOG("Block not found");
-                returnStatus = SQLITE_IOERR_SHORT_READ;
+                if (returnStatus == SQLITE_OK)
+                    returnStatus = SQLITE_IOERR_SHORT_READ;
             }
             else {
                 DLOG("wrong reply type. Bailing straight away");
-                return SQLITE_IOERR;
+                return SQLITE_IOERR_READ;
             }
 
             freeReplyObject(reply);
     }
+    if ((returnStatus == SQLITE_IOERR_SHORT_READ) && (successfully_read == 0)) {
+        returnStatus = SQLITE_IOERR_READ;
+    }
+    assert(!SQLITE_OK || (successfully_read == iAmt));
     return returnStatus;
-}
-int redisvfs_write(sqlite3_file *fp, const void *buf, int iAmt, sqlite3_int64 iOfst) {
-    DLOG("stub");
-    return !SQLITE_OK; // FIXME: Implement
 }
 int redisvfs_truncate(sqlite3_file *fp, sqlite3_int64 size) {
     DLOG("stub");
@@ -429,9 +538,14 @@ DLOG("(zName='%s',syncDir=%d)",  zName, syncDir);
     return SQLITE_IOERR_DELETE;
 }
 int redisvfs_access(sqlite3_vfs *vfs, const char *zName, int flags, int *pResOut) {
-DLOG("(zName='%s', flags=%d)", zName, flags);
-    if (pResOut != 0)
-        *pResOut = 0;
+DLOG("(zName='%s', flags=%d (%s%s%s))", zName, flags,
+     (flags & SQLITE_ACCESS_EXISTS) == SQLITE_ACCESS_EXISTS ? "SQLITE_ACCESS_EXISTS" : "",
+     (flags &  SQLITE_ACCESS_READWRITE) == SQLITE_ACCESS_READWRITE ? "SQLITE_ACCESS_READWRITE" : "",
+     (flags &  SQLITE_ACCESS_READ) == SQLITE_ACCESS_READ ? "SQLITE_ACCESS_READ" : "");
+
+//   FIXME: Can only  check redis from a file created with redisvfs_open
+    //static bool redis_does_block_exist(RedisFile *rf, int64_t offset) {
+    *pResOut = 0;
     return SQLITE_OK;
 }
 int redisvfs_fullPathname(sqlite3_vfs *vfs, const char *zName, int nOut, char *zOut) {
@@ -482,7 +596,7 @@ int redisvfs_currentTimeInt64(sqlite3_vfs *vfs, sqlite3_int64 *piNow) {
 
 /* VFS object for sqlite3 */
 sqlite3_vfs redis_vfs = {
-    2, 0, 1024, 0, /* iVersion, szOzFile, mxPathname, pNext */
+    2, 0, REDISVFS_MAX_PREFIXLEN, 0, /* iVersion, szOzFile, mxPathname, pNext */
     "redisvfs", 0,  /* zName, pAppData */
     redisvfs_open,
     redisvfs_delete,
@@ -505,7 +619,7 @@ int redisvfs_register() {
     int ret;
 
     //FIXME Move out of here. Can be evaluated ompiletime
-    redis_vfs.szOsFile = sizeof(RedisFile); 
+    redis_vfs.szOsFile = sizeof(RedisFile);
 
     // Get the existing default vfs and pilfer it's OS abstrations
     // This will normally work as long as the (previously) default
