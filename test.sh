@@ -15,6 +15,7 @@ select 1+2;
 '
 
 ./sqlitedis '
+DROP TABLE IF EXISTS fish;
 CREATE TABLE fish (a,b,c);
 INSERT INTO fish VALUES (1,2,3);
 SELECT * FROM fish;
@@ -30,6 +31,7 @@ select 1+2;
 '
 
 ./static-sqlitedis '
+DROP TABLE IF EXISTS fish;
 CREATE TABLE fish (a,b,c);
 INSERT INTO fish VALUES (1,2,3);
 SELECT * FROM fish;
@@ -47,7 +49,9 @@ select 1+2;
 '
 
 ./sqlitedis '
+DROP TABLE IF EXISTS fish;
 CREATE TABLE fish (a,b,c);
 INSERT INTO fish VALUES (1,2,3);
+INSERT INTO fish VALUES ("Yep","This","Works")
 SELECT * FROM fish;
 '

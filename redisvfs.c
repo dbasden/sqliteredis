@@ -607,9 +607,14 @@ DLOG("(zName='%s',nOut=%d)", zName,nOut);
 // Note: Turns out that you really need to pass the parent VFS struct referennce into it's own
 //       calls not our VFS struct ref. This is obvious in retrospect.
 //
+#ifdef DEBUG_REDISVFS
 #define VFS_SHIM_CALL(_callname,_vfs,...) \
     DLOG("%s->" #_callname,PARENT_VFS(_vfs)->zName), \
     PARENT_VFS(_vfs)->_callname(PARENT_VFS(_vfs), __VA_ARGS__)
+#else
+#define VFS_SHIM_CALL(_callname,_vfs,...) \
+    PARENT_VFS(_vfs)->_callname(PARENT_VFS(_vfs), __VA_ARGS__)
+#endif
 
 void * redisvfs_dlOpen(sqlite3_vfs *vfs, const char *zFilename) {
     return VFS_SHIM_CALL(xDlOpen, vfs, zFilename);

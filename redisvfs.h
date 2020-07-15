@@ -78,7 +78,11 @@ int sqlite3_redisvfs_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routin
 #endif
 
 /* Really bad debugging macros that go on forever */
+#ifdef DEBUG_REDISVFS
 #define DLOG(fmt,...) fprintf(stderr, "%s[%d]: %s: " fmt "\n", __FILE__, __LINE__, __func__, ##__VA_ARGS__),fflush(stderr)
+#else
+#define DLOG(fmt,...)  do{}while(0)
+#endif
 
 #define _redis_debugreply_val(reply) do {\
     if (reply->type == REDIS_REPLY_INTEGER)  \
