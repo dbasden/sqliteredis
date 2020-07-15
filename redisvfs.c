@@ -51,22 +51,26 @@ static inline int64_t _start_of_next_block(int64_t offset) {
         return _start_of_block(offset) + REDISVFS_BLOCKSIZE;
 }
 
+// Only used if we nest too much evil macro expansion of the debugreply macros
+static inline void redis_debugreplyarray (const redisReply *reply) {
+    for (int i=0; i<reply->elements; ++i) redis_debugreply(reply->element[i]);
+}
+
 /* Make it easier to play fast and loose with redis pipelining */
 static int redis_discard_replies(RedisFile *rf, int ndiscards) {
     for (int i=0; i<ndiscards; ++i) {
         redisReply *reply;
         if (redisGetReply(rf->redisctx, (void **)&reply) != REDIS_OK)
             return REDIS_ERR;
+#if 0
+        DLOG("DISCARDING REPLY:");
+        redis_debugreply(reply);
+#endif
         freeReplyObject(reply);
     }
     return REDIS_OK;
 }
 
-
-// Only used if we nest too much evil macro expansion of the debugreply macros
-static inline void redis_debugreplyarray (const redisReply *reply) {
-    for (int i=0; i<reply->elements; ++i) redis_debugreply(reply->element[i]);
-}
 
 /* redis blockio */
 
@@ -132,6 +136,31 @@ static int64_t redis_get_filesize(RedisFile *rf) {
     }
     freeReplyObject(reply);
     return filesize;
+}
+
+static int64_t redis_force_set_filesize(RedisFile *rf, int64_t filesize) {
+    assert(filesize >= 0);
+    char key[REDISVFS_KEYBUFLEN];
+    get_filesizekey(rf, key);
+
+    if (redisAppendCommand(rf->redisctx, "MULTI") == REDIS_ERR)
+        return REDIS_ERR;
+    if (redisAppendCommand(rf->redisctx, "DEL %s", key) == REDIS_ERR)
+        return REDIS_ERR;
+    if (redis_queue_increase_filesize_to(rf, filesize) == REDIS_ERR)
+        return REDIS_ERR;
+    if (redisAppendCommand(rf->redisctx, "EXEC") == REDIS_ERR)
+        return REDIS_ERR;
+
+    // TODO: Actually check return codes.  Ignore if DEL fails.
+    if (redis_discard_replies(rf, 2) == REDIS_ERR)  // MULTI,DEL
+        return REDIS_ERR;
+    if (redis_consume_increase_filesize_to(rf))
+        return REDIS_ERR;
+    if (redis_discard_replies(rf, 1) == REDIS_ERR)  // EXEC
+        return REDIS_ERR;
+
+    return REDIS_OK;
 }
 
 
@@ -397,8 +426,14 @@ int redisvfs_read(sqlite3_file *fp, void *buf, int iAmt, sqlite3_int64 iOfst) {
     return returnStatus;
 }
 int redisvfs_truncate(sqlite3_file *fp, sqlite3_int64 size) {
-    DLOG("stub");
-    return !SQLITE_OK; // FIXME: Implement
+    sqlite3_int64 existing_size;
+    if (redisvfs_fileSize(fp, &existing_size) == REDIS_ERR)
+        return SQLITE_ERROR;
+    if (existing_size < size)
+        return SQLITE_ERROR;
+    if (redis_force_set_filesize((RedisFile *)fp, size) == REDIS_ERR)
+        return SQLITE_ERROR;
+    return SQLITE_OK;
 }
 int redisvfs_sync(sqlite3_file *fp, int flags) {
     DLOG("stub");
@@ -504,6 +539,7 @@ DLOG("(zName='%s',flags=%d)", zName,flags);
 
     RedisFile *rf = (RedisFile *)f;
     memset(rf, 0, sizeof(RedisFile));
+    //  pMethods must be set even if redisvfs_open fails!
     rf->base.pMethods = &redisvfs_io_methods;
 
     rf->keyprefixlen = strnlen(zName, REDISVFS_MAX_PREFIXLEN+1);
@@ -534,8 +570,18 @@ DLOG("key prefix: '%s'", rf->keyprefix);
 
 int redisvfs_delete(sqlite3_vfs *vfs, const char *zName, int syncDir) {
 DLOG("(zName='%s',syncDir=%d)",  zName, syncDir);
-    // FIXME: Can implement
-    return SQLITE_IOERR_DELETE;
+    // TODO: Better implementation that actually deletes things
+    RedisFile rf;
+    int openflags;
+
+    if (redisvfs_open(vfs, zName, (sqlite3_file *)(&rf), 0, &openflags) != SQLITE_OK) 
+        return SQLITE_IOERR_DELETE;
+
+    if (redis_force_set_filesize(&rf, 0) == REDIS_ERR)
+        return SQLITE_IOERR_DELETE;
+
+    redisvfs_close((sqlite3_file *)(&rf));
+    return SQLITE_OK;
 }
 int redisvfs_access(sqlite3_vfs *vfs, const char *zName, int flags, int *pResOut) {
 DLOG("(zName='%s', flags=%d (%s%s%s))", zName, flags,
