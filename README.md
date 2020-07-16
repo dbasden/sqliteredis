@@ -2,24 +2,27 @@
 
 SQLite extension to use redis as storage via an emulated VFS
 
-Not yet functionally complete!
+I've only written this as a quick proof of concept at the expense of code quality. Don't ever be put into production or with data you care about.
 
 This isn't something you should use without realising the horrible, horrible implications of meshing these things together.  The sqlite3 docs go into some detail about why it's a bad idea to back the VFS layer onto a network filesystem, and this has even more edge cases to take into account.
 
-I've only written this as a quick proof of concept at the expense of code quality. It's not as something that should ever be put into production or with data you care about.
 
 ### Features / Warnings / Implementation
 
-* Uses redis keys to emulate files
-  * Each file is split up into 1024 byte blocks (too small and there is too much network bandwidth/latency overhead.  Too large and the single threaded redis server starts blocking for more than microseconds, starving other clients)
-  * Partial block writes are done with redis server-side SCRIPT (lua) to avoid read/modify/write races and to cut down on network overhead
-  * Partial block reads also use lua to only send over the wire the part of the block needed
-  * Relies on redis ordering and consistency guarantees to have a consistent view from multiple sqlite3 clients on the same database (or even a single client for that matter)
-* Uses sqlite3 VFS interface to abstract the emulated files
-  * Avoids having to change SQL at all to suit the backend
+* Uses sqlite3 VFS interface to emulate pseudo-posix file IO (to the bare minimum needed)
+* No need to change SQL at all to suit the backend
+* Uses redis keys to emulate raw block storage
+  * Each file is split up into 1024 byte blocks (too small and there is too much network bandwidth/latency overhead.  Too large and the single threaded redis server may start blocking for more than microseconds, starving other clients)
+  * Sparse block implementation (reading *only* a sparse area may or may not work but sqlite does not seem to do this)
+  * Partial block reads/writes are done with GETRANGE/SETRANGE avoid read/modify/write races and to cut down on network overhead
+  * Relies on redis ordering and consistency guarantees to have a consistent view from multiple sqlite3 clients on the same database (entirely untested)
+* Uses different redis keys to emulate a "file" on top of the block store
+  * Tracks file lengths on write.
+  * Allows truncation  (current lazy implementation: only filesize metadata is changed)
+* Multiple sqlite databases  supported on the same redis server (current "filename" used as a prefix in redis keyspace)
 * Can be dynamically loaded as an sqlite3 extension (.so) or built statically
   * Sets itself as the default VFS on load, so if you can get your app to load sqlite3 extensions, you shouldn't need to change anything else
-* database name URI configures redis server
+* Redis server connection defaults to locahost:6379, or (TODO) set in database connection URI as option
 
 ### Build requirements
 
@@ -28,26 +31,20 @@ I've only written this as a quick proof of concept at the expense of code qualit
 * C / C++ compiler
 * cmake + GNU Make
 
-### Building the extension
-
-* Make sure sqlite3ext.h is in your include path, or edit the Makefile to point to a build of sqlite3
-* Run `make redisvfs.so`
-
-### Building the cli test tool
+### Building the extension and cli test tool
 
 ```
 mkdir build
 cd build
 cmake ..
 make
+
+# Test
+../test.sh
 ```
 
 See `./test.sh` for examples.  `sqlitedis` needs to be told to load the `redisvfs` extension to talk to redis.  `static-sqlitedis` has the redis VFS compiled in, and uses it by default.
 
-### Alternate implementation options
-
- * `SETRANGE` and `GETRANGE` are available in Redis >= 2.2 which do substring ops without the need for scripts.
- * Redis strings are still limited to 512MB
 
 ### Author
 

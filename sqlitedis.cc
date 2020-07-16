@@ -101,7 +101,7 @@ int main(int argc, const char **argv) {
 
 	const char* extname = getenv("SQLITE_LOADEXT");
 	if (extname != NULL) {
-		std::cerr << "Loading extension "<<extname <<std::endl;
+		//std::cerr << "Loading extension "<<extname <<std::endl;
 		SQLengine::loadPersistentExtension(extname);
 	}
 
@@ -117,14 +117,14 @@ int main(int argc, const char **argv) {
 
 	char *envdbname = getenv("SQLITE_DB");
 	if (envdbname) {
-		std::cerr << "(using database '"<<envdbname<<"' from env SQLITE_DB) " << std::endl;
+		//std::cerr << "(using database '"<<envdbname<<"' from env SQLITE_DB) " << std::endl;
 		sql = std::make_shared<SQLengine>(envdbname);
 	}
 	else {
 		sql = std::make_shared<SQLengine>();
 	}
 
-	std::cerr << "(using vfs " << sql->currentVFSname() << ")" << std::endl;
+	//std::cerr << "(using vfs " << sql->currentVFSname() << ")" << std::endl;
 	sql->exec(argv[1]);
 
 	return 0;
