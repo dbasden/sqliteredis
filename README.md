@@ -8,7 +8,7 @@ This isn't something you should use without realising the horrible, horrible imp
 
 ### Example with sqlite3 cli tool
 
-```bash
+```sh
 $ sqlite3
 SQLite version 3.27.2 2019-02-25 16:06:06
 Enter ".help" for usage hints.
@@ -20,7 +20,6 @@ sqlite> CREATE TABLE fish(a,b,c);
 sqlite> INSERT INTO fish VALUES (1,2,3);
 sqlite> INSERT INTO fish VALUES (4,5,6);
 sqlite> .exit
-
 $ sqlite3
 SQLite version 3.27.2 2019-02-25 16:06:06
 Enter ".help" for usage hints.
@@ -52,17 +51,6 @@ $ redis-cli 'KEYS' '*'
 17) "example.sqlite:filelen"
 18) "example.sqlite:7"
 19) "example.sqlite-journal:7"
-$ sqlite3
-SQLite version 3.27.2 2019-02-25 16:06:06
-Enter ".help" for usage hints.
-Connected to a transient in-memory database.
-Use ".open FILENAME" to reopen on a persistent database.
-sqlite> .load ./redisvfs
-sqlite> .open "example.sqlite"
-sqlite> SELECT * FROM fish;
-1|2|3
-4|5|6
-sqlite> .exit
 $
 ```
 
@@ -92,7 +80,7 @@ $
 
 ### Building the extension and cli test tool
 
-```
+```sh
 mkdir build
 cd build
 cmake ..
