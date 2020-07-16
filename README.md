@@ -6,6 +6,65 @@ I've only written this as a quick proof of concept at the expense of code qualit
 
 This isn't something you should use without realising the horrible, horrible implications of meshing these things together.  The sqlite3 docs go into some detail about why it's a bad idea to back the VFS layer onto a network filesystem, and this has even more edge cases to take into account.
 
+### Example with sqlite3 cli tool
+
+```bash
+$ sqlite3
+SQLite version 3.27.2 2019-02-25 16:06:06
+Enter ".help" for usage hints.
+Connected to a transient in-memory database.
+Use ".open FILENAME" to reopen on a persistent database.
+sqlite> .load ./redisvfs
+sqlite> .open "example.sqlite"
+sqlite> CREATE TABLE fish(a,b,c);
+sqlite> INSERT INTO fish VALUES (1,2,3);
+sqlite> INSERT INTO fish VALUES (4,5,6);
+sqlite> .exit
+
+$ sqlite3
+SQLite version 3.27.2 2019-02-25 16:06:06
+Enter ".help" for usage hints.
+Connected to a transient in-memory database.
+Use ".open FILENAME" to reopen on a persistent database.
+sqlite> .load ./redisvfs
+sqlite> .open "example.sqlite"
+sqlite> SELECT * FROM fish;
+1|2|3
+4|5|6
+sqlite> .exit
+$ redis-cli 'KEYS' '*'
+ 1) "example.sqlite-journal:3"
+ 2) "example.sqlite-journal:5"
+ 3) "example.sqlite-journal:0"
+ 4) "example.sqlite:2"
+ 5) "example.sqlite-journal:6"
+ 6) "example.sqlite:3"
+ 7) "example.sqlite-journal:8"
+ 8) "example.sqlite:1"
+ 9) "example.sqlite-journal:4"
+10) "example.sqlite:4"
+11) "example.sqlite-journal:1"
+12) "example.sqlite-journal:2"
+13) "example.sqlite:5"
+14) "example.sqlite:0"
+15) "example.sqlite:6"
+16) "example.sqlite-journal:filelen"
+17) "example.sqlite:filelen"
+18) "example.sqlite:7"
+19) "example.sqlite-journal:7"
+$ sqlite3
+SQLite version 3.27.2 2019-02-25 16:06:06
+Enter ".help" for usage hints.
+Connected to a transient in-memory database.
+Use ".open FILENAME" to reopen on a persistent database.
+sqlite> .load ./redisvfs
+sqlite> .open "example.sqlite"
+sqlite> SELECT * FROM fish;
+1|2|3
+4|5|6
+sqlite> .exit
+$
+```
 
 ### Features / Warnings / Implementation
 
@@ -38,12 +97,11 @@ mkdir build
 cd build
 cmake ..
 make
-
 # Test
 ../test.sh
 ```
 
-See `./test.sh` for examples.  `sqlitedis` needs to be told to load the `redisvfs` extension to talk to redis.  `static-sqlitedis` has the redis VFS compiled in, and uses it by default.
+(See `./test.sh` for examples of the test tooling.  `sqlitedis` needs to be told to load the `redisvfs` extension to talk to redis.  `static-sqlitedis` has the redis VFS compiled in, and uses it by default. )
 
 
 ### Author
